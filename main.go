@@ -21,7 +21,7 @@ func main() {
 
 	flag.StringVar(&dbUser, "db_user", "postgres", "Database username")
 	flag.StringVar(&dbPass, "db_pass", "", "Database password")
-	flag.StringVar(&dbName, "db_name", "mydatabse", "Name of database to migrate")
+	flag.StringVar(&dbName, "db_name", "mydatabase", "Name of database to migrate")
 	flag.IntVar(&port, "port", 5432, "Database port")
 	flag.StringVar(&sourceIP, "source_ip", "localhost", "Source IP address")
 	flag.StringVar(&dstIP, "dst_ip", "", "Destination IP address")
