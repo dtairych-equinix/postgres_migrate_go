@@ -29,40 +29,69 @@ func main() {
 	flag.Parse()
 
 	// Construct connection strings
-	srcDB := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable", dbUser, dbPass, sourceIP, port, dbName)
-	dstDB := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable", dbUser, dbPass, dstIP, port, dbName)
+	srcDB := fmt.Sprintf("postgres://%s@%s:%d/%s?sslmode=disable", dbUser, sourceIP, port, dbName)
+	dstDB := fmt.Sprintf("postgres://%s@%s:%d/%s?sslmode=disable", dbUser, dstIP, port, dbName)
 
 	// Dump source database to a file
 	dumpFile := "dump.sql"
-	err := dumpDatabase(srcDB, dumpFile)
+	log.Println("Dumping source database...")
+	err := dumpDatabase(srcDB, dumpFile, dbPass)
 	if err != nil {
 		log.Fatalf("Error dumping source database: %v", err)
 	}
 
+	// Transfer dump file to remote server
+	remoteDumpFile := fmt.Sprintf("/tmp/%s", dumpFile)
+	log.Printf("Transferring dump file to remote server: %s\n", dstIP)
+	err = transferFile(dumpFile, remoteDumpFile, dstIP, dbUser)
+	if err != nil {
+		log.Fatalf("Error transferring dump file to remote server: %v", err)
+	}
+
+	// Cleanup local dump file
+	err = os.Remove(dumpFile)
+	if err != nil {
+		log.Printf("Warning: failed to delete local dump file: %v", err)
+	}
+
 	// Restore dump to destination database
-	err = restoreDatabase(dumpFile, dstDB)
+	log.Println("Restoring dump to destination database...")
+	err = restoreDatabase(remoteDumpFile, dstDB, dbPass)
 	if err != nil {
 		log.Fatalf("Error restoring to destination database: %v", err)
 	}
 
-	// Cleanup
-	err = os.Remove(dumpFile)
+	// Cleanup remote dump file
+	log.Println("Cleaning up remote dump file...")
+	cleanupCmd := exec.Command("ssh", "-o", "StrictHostKeyChecking=no", fmt.Sprintf("%s@%s", dbUser, dstIP), "rm", remoteDumpFile)
+	cleanupCmd.Stdout = os.Stdout
+	cleanupCmd.Stderr = os.Stderr
+	err = cleanupCmd.Run()
 	if err != nil {
-		log.Printf("Warning: failed to delete dump file: %v", err)
+		log.Printf("Warning: failed to delete remote dump file: %v", err)
 	}
 
 	fmt.Println("Migration completed successfully!")
 }
 
-func dumpDatabase(connStr, outputFile string) error {
+func dumpDatabase(connStr, outputFile, dbPass string) error {
 	cmd := exec.Command("pg_dump", "-f", outputFile, "-d", connStr)
+	cmd.Env = append(os.Environ(), "PGPASSWORD="+dbPass)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
 }
 
-func restoreDatabase(inputFile, connStr string) error {
-	cmd := exec.Command("pg_restore", "-d", connStr, inputFile)
+func restoreDatabase(inputFile, connStr, dbPass string) error {
+	cmd := exec.Command("psql", "-d", connStr, "-f", inputFile)
+	cmd.Env = append(os.Environ(), "PGPASSWORD="+dbPass)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+func transferFile(localFile, remoteFile, remoteHost, user string) error {
+	cmd := exec.Command("scp", "-o", "StrictHostKeyChecking=no", localFile, fmt.Sprintf("%s@%s:%s", user, remoteHost, remoteFile))
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
