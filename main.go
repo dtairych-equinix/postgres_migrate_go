@@ -13,22 +13,24 @@ func main() {
 	var (
 		dbUser   string
 		dbPass   string
+		dbName   string
 		port     int
 		sourceIP string
 		dstIP    string
 	)
 
-	flag.StringVar(&dbUser, "db_user", "", "Database username")
+	flag.StringVar(&dbUser, "db_user", "postgres", "Database username")
 	flag.StringVar(&dbPass, "db_pass", "", "Database password")
+	flag.StringVar(&dbName, "db_name", "mydatabse", "Name of database to migrate")
 	flag.IntVar(&port, "port", 5432, "Database port")
-	flag.StringVar(&sourceIP, "source_ip", "", "Source IP address")
+	flag.StringVar(&sourceIP, "source_ip", "localhost", "Source IP address")
 	flag.StringVar(&dstIP, "dst_ip", "", "Destination IP address")
 
 	flag.Parse()
 
 	// Construct connection strings
-	srcDB := fmt.Sprintf("postgres://%s:%s@%s:%d/template1?sslmode=disable", dbUser, dbPass, sourceIP, port)
-	dstDB := fmt.Sprintf("postgres://%s:%s@%s:%d/template1?sslmode=disable", dbUser, dbPass, dstIP, port)
+	srcDB := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable", dbUser, dbPass, sourceIP, port, dbName)
+	dstDB := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable", dbUser, dbPass, dstIP, port, dbName)
 
 	// Dump source database to a file
 	dumpFile := "dump.sql"
